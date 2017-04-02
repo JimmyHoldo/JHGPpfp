@@ -143,8 +143,8 @@ merge :: Ord a => [a] -> [a] -> [a]
 merge xs []     = xs
 merge [] ys     = ys
 merge (x:xs) (y:ys)
-    | x <= y    = x:(merge xs (y:ys))
-    | otherwise = y:(merge (x:xs) ys)
+    | x <= y    = (force x):(merge xs (y:ys))
+    | otherwise = (force y):(merge (x:xs) ys)
 
 mergesort :: Ord a => [a] -> [a]
 mergsort []   = []
@@ -159,7 +159,7 @@ mergesort xs  = merge (mergesort ys) (mergesort zs)
 dcmergesort :: Ord a => [a] -> [a]
 dcmergesort xs = dcmergesort' 4 xs
 
-dcmergesort' :: Ord a => Int ->[a] -> [a]
+dcmergesort' :: (Ord a) => Int ->[a] -> [a]
 dcmergesort' _ []  = []
 dcmergesort' _ [x] = [x]
 dcmergesort' 0 xs  = mergesort xs
@@ -167,7 +167,8 @@ dcmergesort' n xs  = merge ys zs
     where (ys,zs) = runEval $ do
                     zs <- rpar $ dcmergesort' (n-1) b
                     ys <- rseq $ dcmergesort' (n-1) a
-                    rseq zs
+                    rseq $ forcelist zs
+                    rseq $ forcelist ys
                     return (ys,zs)
           (a,b)   = splitAt (length xs `div` 2) xs
 
@@ -184,11 +185,13 @@ pmergesort' _ [] =  []
 pmergesort' _ [x] =  [x]
 pmergesort' 0 xs =  (mergesort xs)
 pmergesort' n xs = runPar $ do
-    ys <- new
-    fork $ put ys $ pmergesort' (n-1) (a)
-    let zs = pmergesort' (n-1) ( b)
-    qa <- get ys
-    return (merge (qa) (zs))
+    i <- new
+    j <- new
+    fork $ put i $ pmergesort' (n-1) (a)
+    fork $ put j $ pmergesort' (n-1) (b)
+    ys <- get i
+    zs <- get j
+    return (merge ( ys) ( zs))
   where (a,b) = splitAt (length xs `div` 2) xs
 
 ff xs = forcelist xs `pseq` xs
@@ -206,7 +209,8 @@ runSort = do
     let rs2 = crud xs2 ++ ys2
     let rs3 = crud xs3 ++ ys3
 
-
+    print (mergesort rs == dcmergesort rs)
+    print (mergesort rs == pmergesort rs)
     -- start <- getCurrentTime
     -- pseq (sum(mergesort rs :: [Float])) (return ())
     -- end <- getCurrentTime
