@@ -1,0 +1,25 @@
+----------
+Part 1 : Jackknife
+----------
+
+In this task we run the same program, Jackknife, using five different maps (including the default map).
+The non default maps are described here:
+
+pmap uses par and pseq to spark the calculation of each element in the resulting list and uses a function called force to ensure that the result returned is a fully evaluated map and not a function handle.
+
+rmap works similarly to pmap but uses the Eval monad, rpar, and rseq to get parallelism.
+
+smap utilizes the default map aswell as a standard strategy, parListChunk, to run the default map in parallel.
+
+pmmap uses the Par monad to fork off the calculation of each element of the resulting list.
+
+----------
+Part 2 : Mergesort
+----------
+
+In this task we implement 3 different versions of mergesort (including the non-parallelized version)
+The two parallel sorts are described here:
+
+dcmergesort uses the Eval monad to parallelize mergesort, and does so with a predefined depth of up to 4 recursions. After that it uses non-parallel mergesort.
+
+pmergesort uses the Par monad to parellelize mergesort in a way similar to dcmergesort.
