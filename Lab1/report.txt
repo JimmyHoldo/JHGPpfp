@@ -9,9 +9,9 @@ pmap uses par and pseq to spark the calculation of each element in the resulting
 
 rmap works similarly to pmap but uses the Eval monad, rpar, and rseq to get parallelism.
 
-smap utilizes the default map aswell as a standard strategy, parListChunk, to run the default map in parallel.
+smap utilizes the default map aswell as a standard strategy, parListChunk, to run the default map on chunks of the list in parallel.
 
-pmmap uses the Par monad to fork off the calculation of each element of the resulting list.
+pmmap uses the Par monad to fork off the calculation of each element of the resulting list until a certain treshhold after which it runs the remaining elements sequentially. The idea is that when one thread is running the remaining list sequentially the others will be working on the workpool and with the correct treshhold they will finish simultaneously. I.e the remaining elements is the workpool of one process without the need to scheduel them
 
 ----------
 Part 2 : Mergesort
