@@ -29,23 +29,19 @@ resamples k xs =
     take (length xs - k) $
     zipWith (++) (inits xs) (map (drop k) (tails xs))
 
--- | Jackknife using a map function utilizing par and pseq
+
 pjackknife :: ([a] -> b) -> [a] -> [b]
 pjackknife f = pmap f . resamples 500
 
--- | Jackknife using a map function utilizing the Eval monad.
 rjackknife :: ([a] -> b) -> [a] -> [b]
 rjackknife f = rmap f . resamples 500
 
--- | Jackknife using a map function utilizing Strategies.
 sjackknife :: NFData b =>  ([a] -> b) -> [a] -> [b]
 sjackknife f = smap f . resamples 500
 
--- | Jackknife using a map function utilizing the Par monad.
 pmjackknife :: NFData b =>  ([a] -> b) -> [a] -> [b]
-pmjackknife f = pmmap 500 f . resamples 500
+pmjackknife f = pmmap f . resamples 500
 
--- | Jackknife using a map function utilizing sequential map.
 jackknife :: ([a] ->b) -> [a] -> [b]
 jackknife f = map f . resamples 500
 
@@ -54,25 +50,52 @@ crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
 main = do
   let (xs,ys) = splitAt 1500  (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
+  let (xs2,ys2) = splitAt 1500  (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
+  let (xs3,ys3) = splitAt 1500  (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
+  let (xs4,ys4) = splitAt 1500  (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
+  let (xs5,ys5) = splitAt 1500  (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
 
   -- handy (later) to give same input different parallel functions
 
   let rs = crud xs ++ ys
+  let rs2 = crud xs2 ++ ys2
+  let rs3 = crud xs3 ++ ys3
+  let rs4 = crud xs4 ++ ys4
+  let rs5= crud xs5 ++ ys5
 
-  putStrLn $ "sample mean:    " ++ show (mean rs)
+  -- putStrLn $ "sample mean:    " ++ show (mean rs)
+  --
+  -- let j = jackknife mean rs :: [Float]
+  -- putStrLn $ "jack mean min:  " ++ show (minimum j)
+  -- putStrLn $ "jack mean max:  " ++ show (maximum j)
+  start <- getCurrentTime
+  pseq (sum(jackknife mean rs :: [Float])) (return ())
+  end <- getCurrentTime
+  putStrLn ("time: " ++ show (end `diffUTCTime` start) ++ " seconds jackknife")
+  start2 <- getCurrentTime
+  pseq (sum(pjackknife mean rs2 :: [Float])) (return ())
+  end2 <- getCurrentTime
+  putStrLn ("time: " ++ show (end2 `diffUTCTime` start2) ++ " seconds pjackknife")
+  start3 <- getCurrentTime
+  pseq (sum(rjackknife mean rs3 :: [Float])) (return ())
+  end3 <- getCurrentTime
+  putStrLn ("time: " ++ show (end3 `diffUTCTime` start3) ++ " seconds rjackknife")
+  start4 <- getCurrentTime
+  pseq (sum(sjackknife mean rs4 :: [Float])) (return ())
+  end4 <- getCurrentTime
+  putStrLn ("time: " ++ show (end4 `diffUTCTime` start4) ++ " seconds sjackknife")
+  start5 <- getCurrentTime
+  pseq (sum(sjackknife mean rs5 :: [Float])) (return ())
+  end5 <- getCurrentTime
+  putStrLn ("time: " ++ show (end5 `diffUTCTime` start5) ++ " seconds pmjackknife")
 
-  let j = jackknife mean rs :: [Float]
-  putStrLn $ "jack mean min:  " ++ show (minimum j)
-  putStrLn $ "jack mean max:  " ++ show (maximum j)
-
-  defaultMain
-        [
-         bench "pjackknife" (nf (pjackknife  mean) rs),
-         bench "pmjackknife" (nf (pmjackknife mean) rs),
-         bench "rjackknife" (nf (rjackknife  mean) rs),
-         bench "sjackknife" (nf (sjackknife  mean) rs),
-         bench "jackknife"  (nf (jackknife  mean) rs)
-         ]
+  -- defaultMain
+  --       [
+  --        bench "pjackknife" (nf (pjackknife  mean) rs),
+  --        bench "rjackknife" (nf (rjackknife  mean) rs2),
+  --        bench "sjackknife" (nf (sjackknife  mean) rs3),
+  --        bench "jackknife"  (nf (jackknife  mean) rs4)
+  --        ]
   runSort
 -------------------------------------------------------------------------------
 -- map functions
@@ -105,14 +128,12 @@ smap _ [] = []
 smap f xs = (map f xs `using` parListChunk 200 rdeepseq)
 
 -- | Map over a list using the Par monad.
-pmmap :: NFData t => Int -> (a -> t) -> [a] -> ([t])
-pmmap _ _ []     = []
-pmmap n f (x:xs) | n > 0 = map f (x:xs)
-             | otherwise = runPar $
+pmmap :: NFData t => (a -> t) -> [a] -> ([t])
+pmmap _ []     = []
+pmmap f (x:xs) = runPar $
     do i <- new
-       j <- new
        fork $ put i (f x)
-       let xs' = pmmap (n-1) f xs
+       let xs' = pmmap f xs
        x <- get i
        return (x:xs')
 -------------------------------------------------------------------
@@ -145,8 +166,9 @@ dcmergesort' 0 xs  = mergesort xs
 dcmergesort' n xs  = merge ys zs
     where (ys,zs) = runEval $ do
                     zs <- rpar $ dcmergesort' (n-1) b
-                    ys <- rpar $ dcmergesort' (n-1) a
+                    ys <- rseq $ dcmergesort' (n-1) a
                     rseq $ forcelist zs
+                    rseq $ forcelist ys
                     return (ys,zs)
           (a,b)   = splitAt (length xs `div` 2) xs
 
@@ -172,23 +194,36 @@ pmergesort' n xs = runPar $ do
     return (merge ( ys) ( zs))
   where (a,b) = splitAt (length xs `div` 2) xs
 
+ff xs = forcelist xs `pseq` xs
 ------------------------------------------------------------------------------
--- Run function for sorting
+-- Run function for ssorting
 ------------------------------------------------------------------------------
 runSort = do
     let (xs,ys)   = splitAt 1500
                     (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
+    let (xs2,ys2) = splitAt 1500
+                    (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
+    let (xs3,ys3) = splitAt 1500
+                    (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
     let rs  = crud xs ++ ys
+    let rs2 = crud xs2 ++ ys2
+    let rs3 = crud xs3 ++ ys3
 
-    -- check if the sorted lists are equal.
-    print("Check if the sorted lists are equal.")
     print (mergesort rs == dcmergesort rs)
     print (mergesort rs == pmergesort rs)
-    putStrLn $  ""
+    -- start <- getCurrentTime
+    -- pseq (sum(mergesort rs :: [Float])) (return ())
+    -- end <- getCurrentTime
+    -- putStrLn ("time: " ++ show (end `diffUTCTime` start) ++ " seconds mergesort")
+    -- start2 <- getCurrentTime
+    -- pseq (sum(dcmergesort' rs2 :: [Float])) (return ())
+    -- end2 <- getCurrentTime
+    -- putStrLn ("time: " ++ show (end2 `diffUTCTime` start2) ++ " seconds dcmergesort'")
+    -- print ( sum rs)
 
     defaultMain
           [
            bench "mergesort" (nf (mergesort  ) rs),
-           bench "dcmergesort" (nf (dcmergesort  ) rs),
-           bench "pmergesort" (nf (pmergesort  ) rs)
+           bench "dcmergesort" (nf (dcmergesort  ) rs2),
+           bench "pmergesort" (nf (pmergesort  ) rs3)
            ]
