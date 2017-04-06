@@ -120,10 +120,9 @@ pmmap' 0 f xs     = return $ map f xs
 pmmap' n f (x:xs)  = do
                i <- new
                fork $ put i (f x)
-               let xs' = (pmmap' (n-1) f xs)
+               xs' <- (pmmap' (n-1) f xs)
                x <- get i
-               xs'' <- xs'
-               return (x:xs'')
+               return (x:xs')
 
 
 -------------------------------------------------------------------
