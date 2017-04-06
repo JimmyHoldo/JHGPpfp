@@ -67,11 +67,11 @@ main = do
 
   defaultMain
         [
-        --  bench "pjackknife" (nf (pjackknife  mean) rs),
+         bench "pjackknife" (nf (pjackknife  mean) rs),
          bench "pmjackknife" (nf (pmjackknife mean) rs)
-        --  bench "rjackknife" (nf (rjackknife  mean) rs),
-        --  bench "sjackknife" (nf (sjackknife  mean) rs),
-        --  bench "jackknife"  (nf (jackknife  mean) rs)
+         bench "rjackknife" (nf (rjackknife  mean) rs),
+         bench "sjackknife" (nf (sjackknife  mean) rs),
+         bench "jackknife"  (nf (jackknife  mean) rs)
          ]
   runSort
 -------------------------------------------------------------------------------
@@ -199,7 +199,7 @@ runSort = do
 
     defaultMain
           [
-        --    bench "mergesort" (nf (mergesort  ) rs),
-        --    bench "dcmergesort" (nf (dcmergesort  ) rs),
-        --    bench "pmergesort" (nf (pmergesort  ) rs)
+           bench "mergesort" (nf (mergesort  ) rs),
+           bench "dcmergesort" (nf (dcmergesort  ) rs),
+           bench "pmergesort" (nf (pmergesort  ) rs)
            ]
