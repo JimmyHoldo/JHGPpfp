@@ -68,7 +68,7 @@ main = do
   defaultMain
         [
          bench "pjackknife" (nf (pjackknife  mean) rs),
-         bench "pmjackknife" (nf (pmjackknife mean) rs)
+         bench "pmjackknife" (nf (pmjackknife mean) rs),
          bench "rjackknife" (nf (rjackknife  mean) rs),
          bench "sjackknife" (nf (sjackknife  mean) rs),
          bench "jackknife"  (nf (jackknife  mean) rs)
