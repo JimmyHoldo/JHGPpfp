@@ -43,7 +43,7 @@ sjackknife f = smap f . resamples 500
 
 -- | Jackknife using a map function utilizing the Par monad.
 pmjackknife :: NFData b =>  ([a] -> b) -> [a] -> [b]
-pmjackknife f = pmmap 500 f . resamples 500
+pmjackknife f = pmmap f . resamples 500
 
 -- | Jackknife using a map function utilizing sequential map.
 jackknife :: ([a] ->b) -> [a] -> [b]
@@ -67,11 +67,11 @@ main = do
 
   defaultMain
         [
-         bench "pjackknife" (nf (pjackknife  mean) rs),
-         bench "pmjackknife" (nf (pmjackknife mean) rs),
-         bench "rjackknife" (nf (rjackknife  mean) rs),
-         bench "sjackknife" (nf (sjackknife  mean) rs),
-         bench "jackknife"  (nf (jackknife  mean) rs)
+        --  bench "pjackknife" (nf (pjackknife  mean) rs),
+         bench "pmjackknife" (nf (pmjackknife mean) rs)
+        --  bench "rjackknife" (nf (rjackknife  mean) rs),
+        --  bench "sjackknife" (nf (sjackknife  mean) rs),
+        --  bench "jackknife"  (nf (jackknife  mean) rs)
          ]
   runSort
 -------------------------------------------------------------------------------
@@ -93,10 +93,14 @@ pmap f (x:xs) = (fx) `par` ((forcelist fxs) `pseq` (fx:fxs))
 
 -- | Map over a list using the Eval monad
 rmap :: (a -> b) -> [a] -> [b]
-rmap _ []     = []
-rmap f (x:xs) = runEval $ do
+rmap f xs = rmap' 5000 f xs
+
+rmap' :: Int -> (a -> b) -> [a] -> [b]
+rmap' _ _ []     = []
+rmap' 0 f xs     = map f xs
+rmap' n f (x:xs) = runEval $ do
                 fx <- rpar (force(f x))
-                fxs <- rseq (rmap f xs)
+                fxs <- rseq (rmap' (n-1) f xs)
                 return (fx:fxs)
 
 -- | Map over a list with Strategies.
@@ -104,17 +108,24 @@ smap :: NFData t => (a -> t) -> [a] -> [t]
 smap _ [] = []
 smap f xs = (map f xs `using` parListChunk 200 rdeepseq)
 
+pmmap :: NFData t => (a -> t) -> [a] -> [t]
+pmmap f xs = runPar $ do
+    a <- pmmap' 5000 f xs
+    return a
+
 -- | Map over a list using the Par monad.
-pmmap :: NFData t => Int -> (a -> t) -> [a] -> ([t])
-pmmap _ _ []     = []
-pmmap n f (x:xs) | n > 0 = map f (x:xs)
-             | otherwise = runPar $
-    do i <- new
-       j <- new
-       fork $ put i (f x)
-       let xs' = pmmap (n-1) f xs
-       x <- get i
-       return (x:xs')
+pmmap' :: NFData t => Int -> (a -> t) -> [a] -> Par [t]
+pmmap' _ _ []     = return []
+pmmap' 0 f xs     = return $ map f xs
+pmmap' n f (x:xs)  = do
+               i <- new
+               fork $ put i (f x)
+               let xs' = (pmmap' (n-1) f xs)
+               x <- get i
+               xs'' <- xs'
+               return (x:xs'')
+
+
 -------------------------------------------------------------------
 -- mergesort
 ------------------------------------------------------------------
@@ -188,7 +199,7 @@ runSort = do
 
     defaultMain
           [
-           bench "mergesort" (nf (mergesort  ) rs),
-           bench "dcmergesort" (nf (dcmergesort  ) rs),
-           bench "pmergesort" (nf (pmergesort  ) rs)
+        --    bench "mergesort" (nf (mergesort  ) rs),
+        --    bench "dcmergesort" (nf (dcmergesort  ) rs),
+        --    bench "pmergesort" (nf (pmergesort  ) rs)
            ]
