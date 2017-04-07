@@ -30,3 +30,4 @@ dcmergesort uses the Eval monad to parallelize mergesort, and does so with a pre
 
 pmergesort uses the Par monad to parellelize mergesort in a way similar to dcmergesort.
 
+Both dcmergesort and pmergesort are quite a lot better than the sequential variant. Both control their granularity by running recursive calls in parallel up to at most a depth of four. dcmergesort is the fastest of the two, like in the cases of the maps this is probably because runPar is slower than runEval. Despite earlier comments on this we recursively call runPar in pmergesort. This is because the variant we made that only called runPar once (code for that version exists but is commented away) was slower than even the sequential version.
