@@ -108,12 +108,11 @@ smap :: NFData t => (a -> t) -> [a] -> [t]
 smap _ [] = []
 smap f xs = (map f xs `using` parListChunk 200 rdeepseq)
 
-pmmap :: NFData t => (a -> t) -> [a] -> [t]
-pmmap f xs = runPar $ do
-    a <- pmmap' 5000 f xs
-    return a
-
 -- | Map over a list using the Par monad.
+pmmap :: NFData t => (a -> t) -> [a] -> [t]
+pmmap f xs = runPar $ pmmap' 5000 f xs
+
+
 pmmap' :: NFData t => Int -> (a -> t) -> [a] -> Par [t]
 pmmap' _ _ []     = return []
 pmmap' 0 f xs     = return $ map f xs
@@ -165,21 +164,19 @@ dcmergesort' n xs  = merge ys zs
 -- mergesort Par Monad
 ------------------------------------------------------------------------------
 pmergesort :: (Ord a, NFData a) => [a] -> [a]
-pmergesort xs =   pmergesort' 4 xs
+pmergesort xs =  runPar $ pmergesort' 4 xs
 
 
-pmergesort' :: (Ord a, NFData a) => Int -> [a] -> [a]
-pmergesort' _ [] =  []
-pmergesort' _ [x] =  [x]
-pmergesort' 0 xs =  (mergesort xs)
-pmergesort' n xs = runPar $ do
-    i <- new
-    j <- new
-    fork $ put i $ pmergesort' (n-1) (a)
-    fork $ put j $ pmergesort' (n-1) (b)
+pmergesort' :: (Ord a, NFData a) => Int -> [a] -> Par [a]
+pmergesort' _ [] =  return []
+pmergesort' _ [x] = return [x]
+pmergesort' 0 xs = return (mergesort xs)
+pmergesort' n xs =  do
+    i <- spawn $ pmergesort' (n-1) (a)
+    j <- spawn $ pmergesort' (n-1) (b)
     ys <- get i
     zs <- get j
-    return (merge ( ys) ( zs))
+    return (merge ys zs)
   where (a,b) = splitAt (length xs `div` 2) xs
 
 ------------------------------------------------------------------------------
