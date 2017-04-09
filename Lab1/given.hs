@@ -31,7 +31,7 @@ resamples k xs =
 
 -- | Jackknife using a map function utilizing par and pseq
 pjackknife :: ([a] -> b) -> [a] -> [b]
-pjackknife f = pmap f . resamples 500
+pjackknife f = pmap 5000 f . resamples 500
 
 -- | Jackknife using a map function utilizing the Eval monad.
 rjackknife :: ([a] -> b) -> [a] -> [b]
@@ -67,11 +67,11 @@ main = do
 
   defaultMain
         [
-         bench "pjackknife" (nf (pjackknife  mean) rs),
-         bench "pmjackknife" (nf (pmjackknife mean) rs),
-         bench "rjackknife" (nf (rjackknife  mean) rs),
-         bench "sjackknife" (nf (sjackknife  mean) rs),
-         bench "jackknife"  (nf (jackknife  mean) rs)
+        --  bench "pjackknife" (nf (pjackknife  mean) rs),
+        --  bench "pmjackknife" (nf (pmjackknife mean) rs),
+        --  bench "rjackknife" (nf (rjackknife  mean) rs),
+        --  bench "sjackknife" (nf (sjackknife  mean) rs),
+        --  bench "jackknife"  (nf (jackknife  mean) rs)
          ]
   runSort
 -------------------------------------------------------------------------------
@@ -85,11 +85,12 @@ forcelist []     = ()
 forcelist (x:xs) = x `pseq` forcelist xs
 
 -- | Map over a list using par and pseq
-pmap :: (a -> b) -> [a] -> [b]
-pmap _ []     = []
-pmap f (x:xs) = (fx) `par` ((forcelist fxs) `pseq` (fx:fxs))
+pmap :: Int -> (a -> b) -> [a] -> [b]
+pmap _ _ []     = []
+pmap 0 f xs     = map f xs
+pmap n f (x:xs) = (fx) `par` ((forcelist fxs) `pseq` (fx:fxs))
             where fx = f x
-                  fxs = pmap f xs
+                  fxs = pmap (n-1) f xs
 
 -- | Map over a list using the Eval monad
 rmap :: (a -> b) -> [a] -> [b]
@@ -154,11 +155,10 @@ dcmergesort' 0 xs  = mergesort xs
 dcmergesort' n xs  = merge ys zs
     where (ys,zs) = runEval $ do
                     zs <- rpar $ dcmergesort' (n-1) b
-                    ys <- rpar $ dcmergesort' (n-1) a
+                    ys <- rseq $ dcmergesort' (n-1) a
                     rseq $ forcelist zs
                     return (ys,zs)
           (a,b)   = splitAt (length xs `div` 2) xs
-
 
 ------------------------------------------------------------------------------
 -- mergesort Par Monad
@@ -183,11 +183,11 @@ pmergesort' n xs =  do
 -- Run function for sorting
 ------------------------------------------------------------------------------
 runSort = do
-    let (xs,ys)   = splitAt 1500
-                    (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
+    let (xs,ys)   = splitAt 1500 (take 6000 (randoms (mkStdGen 211570155)) :: [Float] )
     let rs  = crud xs ++ ys
 
     -- check if the sorted lists are equal.
+    let a = sum (rs)
     print("Check if the sorted lists are equal.")
     print (mergesort rs == dcmergesort rs)
     print (mergesort rs == pmergesort rs)

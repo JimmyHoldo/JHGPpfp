@@ -15,9 +15,9 @@ smap utilizes the default map aswell as a standard strategy, parListChunk, to ru
 
 pmmap uses the Par monad to fork off the calculation of each element of the resulting list until a certain treshhold after which it runs the remaining elements sequentially. The idea is that when one thread is running the remaining list sequentially the others will be working on the workpool and with the correct treshhold they will finish simultaneously. I.e the remaining elements is the workpool of one process without the need to scheduel them.
 
-pmap, rmap, and pmmap all runt at approrixmately the same speed which is to be expected as they all use the same structure of parallelism (spark och schedule one task for each element in the list). Of these pmmap is somewhat slower than the other two which is probably because the runpar is somewhat slower than runeval.
+pmap, rmap, and pmmap all runt at approrixmately the same speed which is to be expected as they all use the same structure of parallelism (spark and schedule one task for each element in the list). Of these pmmap is faster slower than the other two which is probably because the runpar is somewhat faster than runeval.
 
-smap is by far the fastest of the maps. This we attribute to the fact that parListChunk allows us to use granularity and avoid sparking too many tasks. Since the number of tasks i reduced but there is still enough tasks that all cores got something to do most of the time this method is faster. Presumably we would get similar speedups from the other strategies if we introduced granularity into them aswell.
+smap is by far the fastest of the maps. This we attribute to the fact that parListChunk allows us to use granularity in a different way and avoid sparking too many tasks. Every task is bigger so the overhead for changing tasks is smaller and since the number of tasks i reduced but there is still enough tasks that all cores got something to do most of the time this method is faster. Presumably we would get similar speedups from the other strategies if we introduced granularity in the same way into them aswell.
 
 ----------
 Part 2 : Mergesort
@@ -30,4 +30,4 @@ dcmergesort uses the Eval monad to parallelize mergesort, and does so with a pre
 
 pmergesort uses the Par monad to parellelize mergesort in a way similar to dcmergesort.
 
-Both dcmergesort and pmergesort are quite a lot better than the sequential variant. Both control their granularity by running recursive calls in parallel up to at most a depth of four. dcmergesort is the fastest of the two, like in the cases of the maps this is probably because runPar is slower than runEval. Despite earlier comments on this we recursively call runPar in pmergesort. This is because the variant we made that only called runPar once (code for that version exists but is commented away) was slower than even the sequential version.
+Both dcmergesort and pmergesort are quite a lot faster than the sequential variant. Both control their granularity by running recursive calls in parallel up to at most a depth of four. Compared to the sequential variant so runs dcmergesort approximately 1.7 times faster and pmergesort runs approximately 2.6 times faster. Like in the cases of the maps the speed up when using the Par monad comes probably from a smaller and better handling of the required overhead for parallelization.
