@@ -97,8 +97,37 @@ refine(M) ->
 	    refine(NewM)
     end.
 
+%% refine entries which are lists by removing numbers they are known
+%% not to be in parallel
+
+parallel_refine(M) ->
+    NewM =
+	parallel_refine_rows(
+	  transpose(
+	    parallel_refine_rows(
+	      transpose(
+		unblocks(
+		  parallel_refine_rows(
+		    blocks(M))))))),
+    if M==NewM ->
+	    M;
+       true ->
+	    parallel_refine_rows(NewM)
+    end.
+
 refine_rows(M) ->
     lists:map(fun refine_row/1,M).
+
+%% Parallel version
+parallel_refine_rows(M) ->
+	Parent = self(),
+	Refs = [{make_ref(),N} || N <- M, N /= []],
+	[spawn_link(fun () ->
+        Parent ! {R, refine_row(N)}
+    end) || {R, N} <- Refs],
+	[receive
+        {Ref, Msg} -> Msg
+    end || {Ref,_} <- Refs].
 
 refine_row(Row) ->
     Entries = entries(Row),
@@ -140,7 +169,7 @@ solved_row(Row) ->
 
 %% how hard is the puzzle?
 
-hard(M) ->		      
+hard(M) ->
     lists:sum(
       [lists:sum(
 	 [if is_list(X) ->
@@ -192,7 +221,7 @@ update_nth(I,X,Xs) ->
 %% solve a puzzle
 
 solve(M) ->
-    Solution = solve_refined(refine(fill(M))),
+    Solution = solve_refined(catch refine(fill(M))),
     case valid_solution(Solution) of
 	true ->
 	    Solution;
@@ -222,7 +251,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,100).
+-define(EXECUTIONS,5).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -234,10 +263,24 @@ repeat(F) ->
 benchmarks(Puzzles) ->
     [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
 
+parallel_benchmarks(Puzzles) ->
+    Parent = self(),
+    [spawn_link(fun() ->
+        Parent ! {N, bm(fun() ->
+                  solve(M)
+              end)}
+         end)
+        || {N,M} <- Puzzles],
+    [receive
+        {N, Res} -> {N, Res}
+    end  || _ <- Puzzles].
+
+
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
-  timer:tc(?MODULE,benchmarks,[Puzzles]).
-		      
+  %%{timer:tc(?MODULE,parallel_benchmarks,[Puzzles]),
+  timer:tc(?MODULE,benchmarks,[Puzzles]).%%}.
+
 %% check solutions for validity
 
 valid_rows(M) ->
@@ -248,4 +291,3 @@ valid_row(Row) ->
 
 valid_solution(M) ->
     valid_rows(M) andalso valid_rows(transpose(M)) andalso valid_rows(blocks(M)).
-
