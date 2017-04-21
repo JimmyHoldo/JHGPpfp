@@ -112,19 +112,19 @@ parallel_refine(M) ->
     if M==NewM ->
 	    M;
        true ->
-	    parallel_refine_rows(NewM)
+	    parallel_refine(NewM)
     end.
 
 refine_rows(M) ->
     lists:map(fun refine_row/1,M).
 
 %% Parallel version
-parallel_refine_rows(M) ->
+parallel_refine_rows(Rows) ->
 	Parent = self(),
-	Refs = [{make_ref(),N} || N <- M, N /= []],
+	Refs = [{make_ref(),Row} || Row <- Rows, Row /= []],
 	[spawn_link(fun () ->
-        Parent ! {R, refine_row(N)}
-    end) || {R, N} <- Refs],
+        Parent ! {R, refine_row(K)}
+    end) || {R, K} <- Refs],
 	[receive
         {Ref, Msg} -> Msg
     end || {Ref,_} <- Refs].
@@ -135,7 +135,7 @@ refine_row(Row) ->
 	[if is_list(X) ->
 		 case X--Entries of
 		     [] ->
-			 exit(no_solution);
+			 exit(list_to_atom("refine_row_no_solution_no_possible_number_" ++ lists:flatten(io_lib:format("~w", [X ++ [0] ++ Entries]))));
 		     [Y] ->
 			 Y;
 		     NewX ->
@@ -151,7 +151,8 @@ refine_row(Row) ->
 	true ->
 	    NewRow;
 	false ->
-	    exit(no_solution)
+        exit(refine_row_no_solution_duplicate_entry)
+        %%exit(list_to_atom("refine_row_no_solution_duplicate_entry" ++ lists:flatten(io_lib:format("~w", NewEntries))))
     end.
 
 is_exit({'EXIT',_}) ->
@@ -197,7 +198,7 @@ guess(M) ->
 
 guesses(M) ->
     {I,J,Guesses} = guess(M),
-    Ms = [catch refine(update_element(M,I,J,G)) || G <- Guesses],
+    Ms = [catch parallel_refine(update_element(M,I,J,G)) || G <- Guesses],
     SortedGuesses =
 	lists:sort(
 	  [{hard(NewM),NewM}
@@ -221,7 +222,7 @@ update_nth(I,X,Xs) ->
 %% solve a puzzle
 
 solve(M) ->
-    Solution = solve_refined(catch refine(fill(M))),
+    Solution = solve_refined(catch parallel_refine(fill(M))),
     case valid_solution(Solution) of
 	true ->
 	    Solution;
@@ -278,8 +279,8 @@ parallel_benchmarks(Puzzles) ->
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
-  %%{timer:tc(?MODULE,parallel_benchmarks,[Puzzles]),
-  timer:tc(?MODULE,benchmarks,[Puzzles]).%%}.
+  {timer:tc(?MODULE,parallel_benchmarks,[Puzzles]),
+  timer:tc(?MODULE,benchmarks,[Puzzles])}.
 
 %% check solutions for validity
 
