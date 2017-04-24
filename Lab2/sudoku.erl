@@ -127,14 +127,12 @@ parallel_refine_rows(Rows) ->
             A -> Parent ! {R, A}
         catch
             exit:Exit ->
-                erlang:display("ERRORRRRRRRRRRRRRRRRRRRRRRRRRRRRR"),
-                Parent ! {bad_refine, Exit}
+                Parent ! {R, bad_refine, Exit}
         end
     end) || {R, K} <- Refs],
 	[receive
         {Ref, Msg} -> Msg;
-        {bad_refine, Exit} ->
-            erlang:display("EXIITIITITITITI"),
+        {Ref, bad_refine, Exit} ->
             exit(bad_refine)
     end || {Ref,_} <- Refs].
 
@@ -206,7 +204,7 @@ guess(M) ->
 
 guesses(M) ->
     {I,J,Guesses} = guess(M),
-    Ms = [catch parallel_refine(update_element(M,I,J,G)) || G <- Guesses],
+    Ms = [(catch parallel_refine(update_element(M,I,J,G))) || G <- Guesses],
     SortedGuesses =
 	lists:sort(
 	  [{hard(NewM),NewM}
@@ -260,7 +258,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,5).
+-define(EXECUTIONS,1).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
