@@ -121,12 +121,21 @@ refine_rows(M) ->
 %% Parallel version
 parallel_refine_rows(Rows) ->
 	Parent = self(),
-	Refs = [{make_ref(),Row} || Row <- Rows, Row /= []],
+	Refs = [{make_ref(),Row} || Row <- Rows],
 	[spawn_link(fun () ->
-        Parent ! {R, refine_row(K)}
+        try refine_row(K) of
+            A -> Parent ! {R, A}
+        catch
+            exit:Exit ->
+                erlang:display("ERRORRRRRRRRRRRRRRRRRRRRRRRRRRRRR"),
+                Parent ! {bad_refine, Exit}
+        end
     end) || {R, K} <- Refs],
 	[receive
-        {Ref, Msg} -> Msg
+        {Ref, Msg} -> Msg;
+        {bad_refine, Exit} ->
+            erlang:display("EXIITIITITITITI"),
+            exit(bad_refine)
     end || {Ref,_} <- Refs].
 
 refine_row(Row) ->
@@ -135,7 +144,7 @@ refine_row(Row) ->
 	[if is_list(X) ->
 		 case X--Entries of
 		     [] ->
-			 exit(list_to_atom("refine_row_no_solution_no_possible_number_" ++ lists:flatten(io_lib:format("~w", [X ++ [0] ++ Entries]))));
+			 exit(refine_row_no_solution_no_possible_number);
 		     [Y] ->
 			 Y;
 		     NewX ->
@@ -152,7 +161,6 @@ refine_row(Row) ->
 	    NewRow;
 	false ->
         exit(refine_row_no_solution_duplicate_entry)
-        %%exit(list_to_atom("refine_row_no_solution_duplicate_entry" ++ lists:flatten(io_lib:format("~w", NewEntries))))
     end.
 
 is_exit({'EXIT',_}) ->
