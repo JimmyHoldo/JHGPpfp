@@ -1,4 +1,4 @@
--module(org_sudoku).
+-module(spec_sudoku).
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
 
@@ -213,16 +213,21 @@ solve_one([]) ->
 solve_one([M]) ->
     solve_refined(M);
 solve_one([M|Ms]) ->
+    Rest = speculate_on_worker(fun()-> (catch solve_one(Ms)) end),
     case catch solve_refined(M) of
 	{'EXIT',no_solution} ->
-	    solve_one(Ms);
+        case worker_value_of(Rest) of
+            {'EXIT',no_solution} ->
+	               solve_one(Ms);
+           Solution -> Solution
+        end;
 	Solution ->
 	    Solution
     end.
 
 %% benchmarks
 
--define(EXECUTIONS,100).
+-define(EXECUTIONS,1).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -236,6 +241,7 @@ benchmarks(Puzzles) ->
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
+  start_pool(erlang:system_info(schedulers)-1),
   timer:tc(?MODULE,benchmarks,[Puzzles]).
 
 %% check solutions for validity
@@ -248,3 +254,66 @@ valid_row(Row) ->
 
 valid_solution(M) ->
     valid_rows(M) andalso valid_rows(transpose(M)) andalso valid_rows(blocks(M)).
+
+
+
+
+
+
+start_pool(N) ->
+    true = register(pool,spawn_link(fun()->pool([worker() || _ <- lists:seq(1,N)]) end)).
+
+pool(Workers) ->
+    pool(Workers,Workers).
+
+pool(Workers,All) ->
+    receive
+	{get_worker,Pid} ->
+	    case Workers of
+		[] ->
+		    Pid ! {pool,no_worker},
+		    pool(Workers,All);
+		[W|Ws] ->
+		    Pid ! {pool,W},
+		    pool(Ws,All)
+	    end;
+	{return_worker,W} ->
+	    pool([W|Workers],All);
+	{stop,Pid} ->
+	    [unlink(W) || W <- All],
+	    [exit(W,kill) || W <- All],
+	    unregister(pool),
+	    Pid ! {pool,stopped}
+    end.
+
+worker() ->
+    spawn_link(fun work/0).
+
+work() ->
+    receive
+	{task,Pid,R,F} ->
+	    Pid ! {R,F()},
+	    pool ! {return_worker,self()},
+	    work()
+    end.
+
+speculate_on_worker(F) ->
+    case whereis(pool) of
+	undefined -> ok;
+	Pool      -> Pool ! {get_worker,self()}
+    end,
+    receive
+	{pool,no_worker} ->
+	    {not_speculating,F};
+	{pool,W} ->
+	    R = make_ref(),
+	    W ! {task,self(),R,F},
+	    {speculating,R}
+    end.
+
+worker_value_of({not_speculating,F}) ->
+    F();
+worker_value_of({speculating,R}) ->
+    receive
+	{R,X} -> X
+    end.

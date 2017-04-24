@@ -1,4 +1,4 @@
--module(spec_sudoku).
+-module(benchparallel_sudoku).
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
 
@@ -220,6 +220,7 @@ solve_one([M|Ms]) ->
 	    Solution
     end.
 
+
 %% benchmarks
 
 -define(EXECUTIONS,1).
@@ -234,9 +235,23 @@ repeat(F) ->
 benchmarks(Puzzles) ->
     [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
 
+parallel_benchmarks(Puzzles) ->
+    Parent = self(),
+    [spawn_link(fun() ->
+        Parent ! {N, bm(fun() ->
+                  solve(M)
+              end)}
+         end)
+        || {N,M} <- Puzzles],
+    [receive
+        {N, Res} -> {N, Res}
+    end  || _ <- Puzzles].
+
+
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
-  timer:tc(?MODULE,benchmarks,[Puzzles]).
+  {timer:tc(?MODULE,parallel_benchmarks,[Puzzles]),
+  timer:tc(?MODULE,benchmarks,[Puzzles])}.
 
 %% check solutions for validity
 
@@ -248,66 +263,3 @@ valid_row(Row) ->
 
 valid_solution(M) ->
     valid_rows(M) andalso valid_rows(transpose(M)) andalso valid_rows(blocks(M)).
-
-
-
-
-
-
-start_pool(N) ->
-    true = register(pool,spawn_link(fun()->pool([worker() || _ <- lists:seq(1,N)]) end)).
-
-pool(Workers) ->
-    pool(Workers,Workers).
-
-pool(Workers,All) ->
-    receive
-	{get_worker,Pid} ->
-	    case Workers of
-		[] ->
-		    Pid ! {pool,no_worker},
-		    pool(Workers,All);
-		[W|Ws] ->
-		    Pid ! {pool,W},
-		    pool(Ws,All)
-	    end;
-	{return_worker,W} ->
-	    pool([W|Workers],All);
-	{stop,Pid} ->
-	    [unlink(W) || W <- All],
-	    [exit(W,kill) || W <- All],
-	    unregister(pool),
-	    Pid ! {pool,stopped}
-    end.
-
-worker() ->
-    spawn_link(fun work/0).
-
-work() ->
-    receive
-	{task,Pid,R,F} ->
-	    Pid ! {R,F()},
-	    pool ! {return_worker,self()},
-	    work()
-    end.
-
-speculate_on_worker(F) ->
-    case whereis(pool) of
-	undefined -> ok;
-	Pool      -> Pool ! {get_worker,self()}
-    end,
-    receive
-	{pool,no_worker} ->
-	    {not_speculating,F};
-	{pool,W} ->
-	    R = make_ref(),
-	    W ! {task,self(),R,F},
-	    {speculating,R}
-    end.
-
-worker_value_of({not_speculating,F}) ->
-    F();
-worker_value_of({speculating,R}) ->
-    receive
-	{R,X} -> X
-    end.

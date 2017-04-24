@@ -1,4 +1,4 @@
--module(benchparallel_sudoku).
+-module(sudoku).
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
 
@@ -97,8 +97,44 @@ refine(M) ->
 	    refine(NewM)
     end.
 
+%% refine entries which are lists by removing numbers they are known
+%% not to be in parallel
+
+parallel_refine(M) ->
+    NewM =
+	parallel_refine_rows(
+	  transpose(
+	    parallel_refine_rows(
+	      transpose(
+		unblocks(
+		  parallel_refine_rows(
+		    blocks(M))))))),
+    if M==NewM ->
+	    M;
+       true ->
+	    parallel_refine(NewM)
+    end.
+
 refine_rows(M) ->
     lists:map(fun refine_row/1,M).
+
+%% Parallel version
+parallel_refine_rows(Rows) ->
+	Parent = self(),
+	Refs = [{make_ref(),Row} || Row <- Rows],
+	[spawn_link(fun () ->
+        try refine_row(K) of
+            A -> Parent ! {R, A}
+        catch
+            exit:Exit ->
+                Parent ! {R, bad_refine, Exit}
+        end
+    end) || {R, K} <- Refs],
+	[receive
+        {Ref, Msg} -> Msg;
+        {Ref, bad_refine, Exit} ->
+            exit(bad_refine)
+    end || {Ref,_} <- Refs].
 
 refine_row(Row) ->
     Entries = entries(Row),
@@ -106,7 +142,7 @@ refine_row(Row) ->
 	[if is_list(X) ->
 		 case X--Entries of
 		     [] ->
-			 exit(no_solution);
+			 exit(refine_row_no_solution_no_possible_number);
 		     [Y] ->
 			 Y;
 		     NewX ->
@@ -122,7 +158,7 @@ refine_row(Row) ->
 	true ->
 	    NewRow;
 	false ->
-	    exit(no_solution)
+        exit(refine_row_no_solution_duplicate_entry)
     end.
 
 is_exit({'EXIT',_}) ->
@@ -168,7 +204,7 @@ guess(M) ->
 
 guesses(M) ->
     {I,J,Guesses} = guess(M),
-    Ms = [catch refine(update_element(M,I,J,G)) || G <- Guesses],
+    Ms = [(catch parallel_refine(update_element(M,I,J,G))) || G <- Guesses],
     SortedGuesses =
 	lists:sort(
 	  [{hard(NewM),NewM}
@@ -192,7 +228,7 @@ update_nth(I,X,Xs) ->
 %% solve a puzzle
 
 solve(M) ->
-    Solution = solve_refined(refine(fill(M))),
+    Solution = solve_refined(catch parallel_refine(fill(M))),
     case valid_solution(Solution) of
 	true ->
 	    Solution;
@@ -219,7 +255,6 @@ solve_one([M|Ms]) ->
 	Solution ->
 	    Solution
     end.
-
 
 %% benchmarks
 
