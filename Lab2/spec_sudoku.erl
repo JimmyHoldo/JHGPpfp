@@ -167,40 +167,14 @@ guess(M) ->
 %% extended matrices, easiest problem first.
 
 guesses(M) ->
-    start_pool(erlang:system_info(schedulers)-1),
     {I,J,Guesses} = guess(M),
-    S = par_guesses(M,I,J,Guesses),
-    io:format("PrintS. ~p!", [S]),
-    pool ! {stop,self()},
-    receive {pool,stopped} -> S end.
-    % Ms = [catch refine(update_element(M,I,J,G)) || G <- Guesses],
-    % Res = speculate_on_worker(fun() -> end),
-    % SortedGuesses =
-	% lists:sort(
-	%   [{hard(NewM),NewM}
-	%    || NewM <- Ms,
-	%       not is_exit(NewM)]),
-    % [G || {_,G} <- SortedGuesses].
-
-par_guesses(M,I,J,[G|Guesses]) ->
-    Rest = speculate_on_worker(fun() -> par_guesses(M,I,J,Guesses) end),
-    io:format("Print. ~p!", [refine(update_element(M,I,J,G))]),
-    case (catch refine(update_element(M,I,J,G))) of
-        {'EXIT',no_solution} ->
-            case worker_value_of(Rest) of
-    		{'EXIT',no_solution} ->
-    		    no_solution;
-    		Solution ->
-                % io:format("Print1. ~p!", Solution),
-                Solution
-        end;
-        Solution ->
-            % io:format("Printw. ~p!", Solution),
-            Solution
-    end;
-par_guesses(_,_,_,[]) ->
-    % io:format("Print. ~p!", ["Empty"]),
-    false.
+    Ms = [catch refine(update_element(M,I,J,G)) || G <- Guesses],
+    SortedGuesses =
+	lists:sort(
+	  [{hard(NewM),NewM}
+	   || NewM <- Ms,
+	      not is_exit(NewM)]),
+    [G || {_,G} <- SortedGuesses].
 
 update_element(M,I,J,G) ->
     update_nth(I,update_nth(J,G,lists:nth(I,M)),M).
@@ -248,7 +222,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,100).
+-define(EXECUTIONS,1).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
