@@ -233,7 +233,7 @@ update_nth(I,X,Xs) ->
 %     end.
 
 solve(M) ->
-    Solution = par_solve_refined(refine(fill(M)), 1000),
+    Solution = par_solve_refined(refine(fill(M)), 3),
     case valid_solution(Solution) of
 	true ->
         pool !
@@ -260,11 +260,11 @@ par_solve_pool([G|Guesses], N) when N == 0 ->
         Solution
     end;
 par_solve_pool([G|Guesses], N) ->
-    S = speculate_on_worker(fun()-> (catch solve_refined(G)) end),
-    Rest = speculate_on_worker(fun()-> (catch par_solve_pool(Guesses, (N-1))) end),
+    S = speculate_on_worker(fun()-> (catch par_solve_refined(G, (N-1))) end),
     case worker_value_of(S) of
    	{'EXIT',no_solution} ->
-           case worker_value_of(Rest) of
+           case worker_value_of(speculate_on_worker(fun()->
+               (catch par_solve_pool(Guesses, (N))) end)) of
                {'EXIT',no_solution} ->
    	               exit(no_solution);
               Solution -> Solution
@@ -382,7 +382,7 @@ speculate_on_worker(F) ->
     end.
 
 worker_value_of({not_speculating,F}) ->
-    erlang:display("no workers"),
+    % erlang:display("no workers"),
     F();
 worker_value_of({speculating,R}) ->
     receive
