@@ -1,4 +1,4 @@
--module(benchparallel_sudoku).
+-module(b_sudoku).
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
 
@@ -223,7 +223,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,1).
+-define(EXECUTIONS,50).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -250,8 +250,7 @@ parallel_benchmarks(Puzzles) ->
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
-  {timer:tc(?MODULE,parallel_benchmarks,[Puzzles]),
-  timer:tc(?MODULE,benchmarks,[Puzzles])}.
+  timer:tc(?MODULE,parallel_benchmarks,[Puzzles]).
 
 %% check solutions for validity
 

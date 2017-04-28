@@ -1,4 +1,4 @@
--module(sudoku).
+-module(r_sudoku).
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
 
@@ -270,23 +270,10 @@ repeat(F) ->
 benchmarks(Puzzles) ->
     [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
 
-parallel_benchmarks(Puzzles) ->
-    Parent = self(),
-    [spawn_link(fun() ->
-        Parent ! {N, bm(fun() ->
-                  solve(M)
-              end)}
-         end)
-        || {N,M} <- Puzzles],
-    [receive
-        {N, Res} -> {N, Res}
-    end  || _ <- Puzzles].
-
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
-  {timer:tc(?MODULE,parallel_benchmarks,[Puzzles]),
-  timer:tc(?MODULE,benchmarks,[Puzzles])}.
+  timer:tc(?MODULE,benchmarks,[Puzzles]).
 
 %% check solutions for validity
 

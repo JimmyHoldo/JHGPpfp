@@ -1,4 +1,4 @@
--module(spec_sudoku).
+-module(s_sudoku).
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
 
@@ -192,7 +192,7 @@ update_nth(I,X,Xs) ->
 %% solve a puzzle
 
 solve(M) ->
-    Solution = solve_refined(refine(fill(M))),
+    Solution = solve_refined(refine(fill(M)), 100),
     case valid_solution(Solution) of
 	true ->
 	    Solution;
@@ -200,25 +200,32 @@ solve(M) ->
 	    exit({invalid_solution,Solution})
     end.
 
-solve_refined(M) ->
+solve_refined(M, N) ->
     case solved(M) of
 	true ->
 	    M;
 	false ->
-	    solve_one(guesses(M))
+	    solve_one(guesses(M), N)
     end.
 
-solve_one([]) ->
+solve_one([], _) ->
     exit(no_solution);
-solve_one([M]) ->
-    solve_refined(M);
-solve_one([M|Ms]) ->
-    Rest = speculate_on_worker(fun()-> (catch solve_one(Ms)) end),
-    case catch solve_refined(M) of
+solve_one([M], N) ->
+    solve_refined(M, N);
+solve_one([M|Ms], N) when N == 0  ->
+    case catch solve_refined(M, N) of
+    {'EXIT',no_solution} ->
+        solve_one(Ms, N);
+    Solution ->
+        Solution
+    end;
+solve_one([M|Ms], N) ->
+    Rest = speculate_on_worker(fun()-> (catch solve_one(Ms, (N-1))) end),
+    case catch solve_refined(M , (N-1)) of
 	{'EXIT',no_solution} ->
         case worker_value_of(Rest) of
             {'EXIT',no_solution} ->
-	               solve_one(Ms);
+	               solve_one(Ms, (N-1));
            Solution -> Solution
         end;
 	Solution ->
@@ -242,7 +249,9 @@ benchmarks(Puzzles) ->
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
   start_pool(erlang:system_info(schedulers)-1),
-  timer:tc(?MODULE,benchmarks,[Puzzles]).
+  S = timer:tc(?MODULE,benchmarks,[Puzzles]),
+  pool ! {stop,self()},
+  receive {pool,stopped} -> S end.
 
 %% check solutions for validity
 

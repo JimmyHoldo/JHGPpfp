@@ -222,7 +222,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,100).
+-define(EXECUTIONS,1).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
