@@ -191,50 +191,111 @@ update_nth(I,X,Xs) ->
 
 %% solve a puzzle
 
+% solve(M) ->
+%     Solution = solve_refined(refine(fill(M)), 100),
+%     case valid_solution(Solution) of
+% 	true ->
+% 	    Solution;
+% 	false ->
+% 	    exit({invalid_solution,Solution})
+%     end.
+%
+% solve_refined(M, N) ->
+%     case solved(M) of
+% 	true ->
+% 	    M;
+% 	false ->
+% 	    solve_one(guesses(M), N)
+%     end.
+%
+% solve_one([], _) ->
+%     exit(no_solution);
+% solve_one([M], N) ->
+%     solve_refined(M, N);
+% solve_one([M|Ms], N) when N == 0  ->
+%     case catch solve_refined(M, N) of
+%     {'EXIT',no_solution} ->
+%         solve_one(Ms, N);
+%     Solution ->
+%         Solution
+%     end;
+% solve_one([M|Ms], N) ->
+%     Rest = speculate_on_worker(fun()-> (catch solve_one(Ms, (N-1))) end),
+%     case catch solve_refined(M , (N-1)) of
+% 	{'EXIT',no_solution} ->
+%         case worker_value_of(Rest) of
+%             {'EXIT',no_solution} ->
+% 	               solve_one(Ms, (N-1));
+%            Solution -> Solution
+%         end;
+% 	Solution ->
+% 	    Solution
+%     end.
+
 solve(M) ->
-    Solution = solve_refined(refine(fill(M)), 100),
+    Solution = par_solve_refined(refine(fill(M)), 1000),
     case valid_solution(Solution) of
 	true ->
+        pool !
 	    Solution;
 	false ->
 	    exit({invalid_solution,Solution})
     end.
 
-solve_refined(M, N) ->
+par_solve_refined(M, N) ->
     case solved(M) of
 	true ->
 	    M;
 	false ->
-	    solve_one(guesses(M), N)
+	    par_solve_pool(guesses(M), N)
     end.
 
-solve_one([], _) ->
-    exit(no_solution);
-solve_one([M], N) ->
-    solve_refined(M, N);
-solve_one([M|Ms], N) when N == 0  ->
-    case catch solve_refined(M, N) of
+par_solve_pool([], _) ->
+   exit(no_solution);
+par_solve_pool([G|Guesses], N) when N == 0 ->
+    case catch solve_refined(G) of
     {'EXIT',no_solution} ->
-        solve_one(Ms, N);
+        solve_one(Guesses);
     Solution ->
         Solution
     end;
-solve_one([M|Ms], N) ->
-    Rest = speculate_on_worker(fun()-> (catch solve_one(Ms, (N-1))) end),
-    case catch solve_refined(M , (N-1)) of
+par_solve_pool([G|Guesses], N) ->
+    S = speculate_on_worker(fun()-> (catch solve_refined(G)) end),
+    Rest = speculate_on_worker(fun()-> (catch par_solve_pool(Guesses, (N-1))) end),
+    case worker_value_of(S) of
+   	{'EXIT',no_solution} ->
+           case worker_value_of(Rest) of
+               {'EXIT',no_solution} ->
+   	               exit(no_solution);
+              Solution -> Solution
+           end;
+   	Solution ->
+   	    Solution
+       end.
+
+solve_refined(M) ->
+    case solved(M) of
+	true ->
+	    M;
+	false ->
+	    solve_one(guesses(M))
+    end.
+
+solve_one([]) ->
+    exit(no_solution);
+solve_one([M]) ->
+    solve_refined(M);
+solve_one([M|Ms]) ->
+    case catch solve_refined(M) of
 	{'EXIT',no_solution} ->
-        case worker_value_of(Rest) of
-            {'EXIT',no_solution} ->
-	               solve_one(Ms, (N-1));
-           Solution -> Solution
-        end;
+	    solve_one(Ms);
 	Solution ->
 	    Solution
     end.
 
 %% benchmarks
 
--define(EXECUTIONS,1).
+-define(EXECUTIONS,5).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -321,6 +382,7 @@ speculate_on_worker(F) ->
     end.
 
 worker_value_of({not_speculating,F}) ->
+    erlang:display("no workers"),
     F();
 worker_value_of({speculating,R}) ->
     receive
