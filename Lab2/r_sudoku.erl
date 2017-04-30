@@ -102,12 +102,12 @@ refine(M) ->
 
 parallel_refine(M) ->
     NewM =
-	parallel_refine_rows(
+	par_split_refine(
 	  transpose(
-	    parallel_refine_rows(
+	    par_split_refine(
 	      transpose(
 		unblocks(
-		  parallel_refine_rows(
+		  par_split_refine(
 		    blocks(M))))))),
     if M==NewM ->
 	    M;
@@ -118,31 +118,34 @@ parallel_refine(M) ->
 refine_rows(M) ->
     lists:map(fun refine_row/1,M).
 
+%%For granularity
+par_split_refine(Rows) ->
+    {A,B} = lists:split(2, Rows),
+    L1 = parallel_refine_rows(A),
+    L2 = lists:map(fun refine_row/1,B),
+    L1 ++ L2.
+
 %% Parallel version
 parallel_refine_rows(Rows) ->
 	Parent = self(),
 	Refs = [{make_ref(),Row} || Row <- Rows],
 	[spawn_link(fun () ->
-        try refine_row(K) of
-            A -> Parent ! {R, A}
-        catch
-            exit:Exit ->
-                Parent ! {R, bad_refine, Exit}
-        end
+        Parent ! {R, catch refine_row(K)}
     end) || {R, K} <- Refs],
 	[receive
-        {Ref, Msg} -> Msg;
-        {Ref, bad_refine, Exit} ->
-            exit(bad_refine)
+        {Ref, {'EXIT', _}} ->
+            exit(bad_refine);
+        {Ref, Msg} -> Msg
     end || {Ref,_} <- Refs].
 
+%% Refine a row
 refine_row(Row) ->
     Entries = entries(Row),
     NewRow =
 	[if is_list(X) ->
 		 case X--Entries of
 		     [] ->
-			 exit(refine_row_no_solution_no_possible_number);
+			 exit(bad_refine);
 		     [Y] ->
 			 Y;
 		     NewX ->
@@ -158,7 +161,7 @@ refine_row(Row) ->
 	true ->
 	    NewRow;
 	false ->
-        exit(refine_row_no_solution_duplicate_entry)
+        exit(bad_refine)
     end.
 
 is_exit({'EXIT',_}) ->
@@ -258,7 +261,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,1).
+-define(EXECUTIONS,10).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
