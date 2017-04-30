@@ -233,7 +233,7 @@ update_nth(I,X,Xs) ->
 %     end.
 
 solve(M) ->
-    Solution = par_solve_refined(refine(fill(M)), 3),
+    Solution = par_solve_refined(refine(fill(M)), 8),
     case valid_solution(Solution) of
 	true ->
         pool !
@@ -260,18 +260,39 @@ par_solve_pool([G|Guesses], N) when N == 0 ->
         Solution
     end;
 par_solve_pool([G|Guesses], N) ->
-    S = speculate_on_worker(fun()-> (catch par_solve_refined(G, (N-1))) end),
-    case worker_value_of(S) of
-   	{'EXIT',no_solution} ->
-           case worker_value_of(speculate_on_worker(fun()->
-               (catch par_solve_pool(Guesses, (N))) end)) of
-               {'EXIT',no_solution} ->
-   	               exit(no_solution);
-              Solution -> Solution
-           end;
-   	Solution ->
-   	    Solution
-       end.
+    S = speculate_on_worker(fun()-> (catch par_solve_refined(G , (N-1))) end),
+    Rest = speculate_on_worker(fun()-> (catch par_solve_pool(Guesses, (N-1))) end),
+    case S of
+        {not_speculating,F} ->
+            case F() of
+                {'EXIT',no_solution} ->
+                    case Rest of
+                        {not_speculating,F2} ->
+                            F2();
+                        {speculating,R2} ->
+                            receive
+                            {R2,X} -> X
+                            end
+                    end;
+                Solution -> Solution
+            end;
+        {speculating,R} ->
+            receive
+                {R,X2} -> X2,
+                case X2 of
+                    {'EXIT',no_solution} ->
+                        case Rest of
+                            {not_speculating,F3} ->
+                                F3();
+                            {speculating,R3} ->
+                                receive
+                                    {R3,X3} -> X3
+                                end
+                        end;
+                    Solution -> Solution
+                end
+            end
+    end.
 
 solve_refined(M) ->
     case solved(M) of
@@ -295,7 +316,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,5).
+-define(EXECUTIONS,50).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -382,7 +403,7 @@ speculate_on_worker(F) ->
     end.
 
 worker_value_of({not_speculating,F}) ->
-    % erlang:display("no workers"),
+    erlang:display("no workers"),
     F();
 worker_value_of({speculating,R}) ->
     receive

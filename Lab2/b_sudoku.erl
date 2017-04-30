@@ -245,7 +245,7 @@ parallel_benchmarks(Puzzles) ->
         || {N,M} <- Puzzles],
     [receive
         {N, Res} -> {N, Res}
-    end  || _ <- Puzzles].
+    end  || {N,_} <- Puzzles].
 
 
 benchmarks() ->

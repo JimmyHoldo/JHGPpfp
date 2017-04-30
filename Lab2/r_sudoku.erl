@@ -102,12 +102,12 @@ refine(M) ->
 
 parallel_refine(M) ->
     NewM =
-	par_split_refine(
+	parallel_refine_rows(
 	  transpose(
-	    par_split_refine(
+	    parallel_refine_rows(
 	      transpose(
 		unblocks(
-		  par_split_refine(
+		  parallel_refine_rows(
 		    blocks(M))))))),
     if M==NewM ->
 	    M;
@@ -118,25 +118,32 @@ parallel_refine(M) ->
 refine_rows(M) ->
     lists:map(fun refine_row/1,M).
 
-%%For granularity
-par_split_refine(Rows) ->
-    {A,B} = lists:split(2, Rows),
-    L1 = parallel_refine_rows(A),
-    L2 = lists:map(fun refine_row/1,B),
-    L1 ++ L2.
-
 %% Parallel version
-parallel_refine_rows(Rows) ->
+parallel_refine_rows([R1|[R2|Rows]]) ->
 	Parent = self(),
-	Refs = [{make_ref(),Row} || Row <- Rows],
-	[spawn_link(fun () ->
-        Parent ! {R, catch refine_row(K)}
-    end) || {R, K} <- Refs],
-	[receive
+	Ref = make_ref(),
+	spawn_link(fun () ->
+        Parent ! {Ref, catch lists:map(fun refine_row/1,[R1,R2])}
+    end),
+    L2 = lists:map(fun refine_row/1,Rows),
+	receive
         {Ref, {'EXIT', _}} ->
             exit(bad_refine);
         {Ref, Msg} -> Msg
-    end || {Ref,_} <- Refs].
+    end ++ L2.
+
+% parallel_refine_rows(Rows) ->
+% 	Parent = self(),
+% 	Refs = [{make_ref(),Row} || Row <- Rows],
+% 	[spawn_link(fun () ->
+%         Parent ! {R, catch refine_row(K)}
+%     end) || {R, K} <- Refs],
+% 	[receive
+%         {Ref, {'EXIT', _}} ->
+%             exit(bad_refine);
+%         {Ref, Msg} -> Msg
+%     end || {Ref,_} <- Refs].
+
 
 %% Refine a row
 refine_row(Row) ->
