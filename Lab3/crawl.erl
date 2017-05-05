@@ -11,7 +11,7 @@
 crawl(Url,D) ->
     Pages = follow(D,[{Url,undefined}]),
     {ok,File} = dets:open_file("web.dat",[]),    
-    [{dets:insert(File,{U,U}),
+    [{dets:insert(File,{U,Body}),
      erlang:display(dets:lookup(File,U))}
         || {U,Body} <- Pages, Body /= undefined],
     dets:close(File).

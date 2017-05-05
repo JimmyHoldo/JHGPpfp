@@ -8,6 +8,7 @@
 %% Use map_reduce to count word occurrences
 
 map(Url,ok) ->
+    dets:open_file(web,[{file,"web.dat"}]),
     [{Url,Body}] = dets:lookup(web,Url),
     Urls = crawl:find_urls(Url,Body),
     [{U,1} || U <- Urls].
