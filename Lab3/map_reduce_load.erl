@@ -47,23 +47,46 @@ map_reduce_load(Map,M,Reduce,R,Input) ->
              Inputs = [KV || Mapped <-Mappeds, {J,KVs} <-Mapped,
                              I==J, KV <-KVs],
              reduce_seq(Reduce,Inputs)
-         end || I <-lists:seq(0,R-1)]]),
+         end || I <-lists:seq(0,R-1)]),
     lists:sort(lists:flatten(Reduceds)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Pool                                                                      %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-start_pool(Fs) ->
-  Nodes = nodes(),
+pool(Funs) ->
+  Nodes = [node()|nodes()],
+  Workers = lists:append([start_workers(Node) || Node <- Nodes]),
+  Solution = worker_pool(Funs, Workers, [] ,0),
+  [unlink(W) || W <- Workers],
+  [exit(W, kill) || W <- Workers],
+  Solution.
 
+start_workers(Node) ->
+    rpc:call(Node, ?MODULE, init_workers, []).
 
-pool(Fs) -> [].
+init_workers() ->
+    [spawn_link(fun() -> work end) || _ <- lists:seq(1, erlang:system_info(schedulers)-1)].
 
-work(Parent) ->
+worker_pool([F|Funs], [W|Workers], Solved, Nr) ->
+    Ref = make_ref(),
+    W ! {self(), Ref, F},
+    worker_pool(Funs, Workers, Solved, (Nr+1));
+
+worker_pool([], _, Solved, 0) ->
+    Solved;
+
+worker_pool(Funs, [], Solved, Nr) ->
     receive
+        {done, Worker, Ref, Solution} ->
+            worker_pool(Funs, [Worker], [Solution|Solved], (Nr-1))
+    end.
 
+work() ->
+    receive
+        {Pool, Ref, F } ->
+            Pool ! {done, self(), Ref, F()}
     end,
-    work(Parent).
+    work().
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 spawn_mapper(Parent,Map,R,Split) ->
