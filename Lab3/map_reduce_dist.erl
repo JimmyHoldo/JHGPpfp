@@ -3,8 +3,8 @@
 %% sequential and parallel versions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--module(map_reduce).
--compile(export_all_dist).
+-module(map_reduce_dist).
+-compile(export_all).
 
 %% We begin with a simple sequential implementation, just to define
 %% the semantics of map-reduce.
@@ -17,13 +17,13 @@
 
 map_reduce_seq(Map,Reduce,Input) ->
     Mapped = [{K2,V2}
-	      || {K,V} <- Input,
-		 {K2,V2} <- Map(K,V)],
+          || {K,V} <- Input,
+         {K2,V2} <- Map(K,V)],
     reduce_seq(Reduce,Mapped).
 
 reduce_seq(Reduce,KVs) ->
     [KV || {K,Vs} <- group(lists:sort(KVs)),
-	   KV <- Reduce(K,Vs)].
+       KV <- Reduce(K,Vs)].
 
 group([]) ->
     [];
@@ -35,20 +35,24 @@ group(K,Vs,[{K,V}|Rest]) ->
 group(K,Vs,Rest) ->
     [{K,lists:reverse(Vs)}|group(Rest)].
 
-map_reduce_par(Map,M,Reduce,R,Input) ->
+map_reduce_dist(Map,M,Reduce,R,Input) ->
     Parent = self(),
-    Splits = split_into(M,Input),
+    Nodes = [node()|nodes()],
+    Splits = split_into(length(Nodes), split_into(M,Input)),
     Mappers =
-	[spawn_mapper(Parent,Map,R,Split)
-	 || Split <- Splits],
+	[rpc:call(Node, ?MODULE, spawn_mapper, [Parent,Map,R,Split])
+	 || {Node, SSplits} <- lists:zip(Nodes, Splits), Split <- SSplits],
     Mappeds =
 	[receive {Pid,L} -> L end || Pid <- Mappers],
     Reducers =
-	[spawn_reducer(Parent,Reduce,I,Mappeds)
-	 || I <- lists:seq(0,R-1)],
+	[rpc:call(Node, ?MODULE, spawn_reducer, [Parent,Reduce,I,Mappeds])
+	 || {Node, I_List} <-
+        lists:zip(Nodes, split_into(length(Nodes), lists:seq(0,R-1))),
+        I <- I_List],
     Reduceds =
 	[receive {Pid,L} -> L end || Pid <- Reducers],
     lists:sort(lists:flatten(Reduceds)).
+
 
 spawn_mapper(Parent,Map,R,Split) ->
     spawn_link(fun() ->
