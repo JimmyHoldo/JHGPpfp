@@ -1,0 +1,6 @@
+
+
+We ran our test on two computers in the school. The computers have a 4-core Intel i5-3470S processor with one node on each computer.
+The choice to only have one node on every machine was because we started "erlang:system_info(schedulers)-1)" processes on every node and therefore more nodes than one on each machine would lead to more interleaving between processes.
+
+ Benchmark with a 96MB 

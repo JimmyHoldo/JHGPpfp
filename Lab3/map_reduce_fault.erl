@@ -51,7 +51,6 @@ map_reduce_fault(Map,M,Reduce,R,Input) ->
 pool(Funs) ->
   Nodes = [node()|nodes()],
   process_flag(trap_exit, true),
-  erlang:display(net_adm:ping(hd(nodes()))),
   Workers = lists:append([start_workers(Node) || Node <- Nodes]),
   Solution = worker_pool(Funs, Workers, [] ,0, []),
   [unlink(W) || {_,W} <- Workers],
@@ -83,7 +82,6 @@ worker_pool(Funs, Workers, Solved, Nr, WorkingProcesses) ->
                                 (Nr-1), NewList)
             end;
         {'EXIT', Pid, _} ->
-            erlang:display("Test"),
             case lists:keytake(Pid,2,WorkingProcesses) of
                 {_,{Node,Pid,Fun},NewList} ->
                     % Restart a process if crashed and node is up.
