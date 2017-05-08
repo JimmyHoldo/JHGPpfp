@@ -65,7 +65,7 @@ start_workers(Node) ->
     rpc:call(Node, ?MODULE, init_workers, []).
 
 init_workers() ->
-    [spawn_link(fun() -> work end) || _ <- lists:seq(1, erlang:system_info(schedulers)-1)].
+    [spawn_link(fun() -> work() end) || _ <- lists:seq(1, erlang:system_info(schedulers)-1)].
 
 worker_pool([F|Funs], [W|Workers], Solved, Nr) ->
     Ref = make_ref(),
@@ -75,10 +75,10 @@ worker_pool([F|Funs], [W|Workers], Solved, Nr) ->
 worker_pool([], _, Solved, 0) ->
     Solved;
 
-worker_pool(Funs, [], Solved, Nr) ->
+worker_pool(Funs, Workers, Solved, Nr) ->
     receive
         {done, Worker, Ref, Solution} ->
-            worker_pool(Funs, [Worker], [Solution|Solved], (Nr-1))
+            worker_pool(Funs, [Worker|Workers], [Solution|Solved], (Nr-1))
     end.
 
 work() ->
