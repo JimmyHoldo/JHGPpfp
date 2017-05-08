@@ -1,8 +1,3 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% This is a very simple implementation of map-reduce, in both
-%% sequential and parallel versions.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 -module(map_reduce_fault).
 -compile(export_all).
 
@@ -35,20 +30,100 @@ group(K,Vs,[{K,V}|Rest]) ->
 group(K,Vs,Rest) ->
     [{K,lists:reverse(Vs)}|group(Rest)].
 
-map_reduce_par(Map,M,Reduce,R,Input) ->
-    Parent = self(),
+map_reduce_fault(Map,M,Reduce,R,Input) ->
     Splits = split_into(M,Input),
-    Mappers =
-	[spawn_mapper(Parent,Map,R,Split)
-	 || Split <- Splits],
-    Mappeds =
-	[receive {Pid,L} -> L end || Pid <- Mappers],
-    Reducers =
-	[spawn_reducer(Parent,Reduce,I,Mappeds)
-	 || I <- lists:seq(0,R-1)],
-    Reduceds =
-	[receive {Pid,L} -> L end || Pid <- Reducers],
+    Mappeds = pool([fun() ->
+        Mapped = [{erlang:phash2(K2,R),{K2,V2}}
+        	       || {K,V} <- Split, {K2,V2} <- Map(K,V)],
+        group(lists:sort(Mapped))
+        end || Split <- Splits]),
+
+    Reduceds = pool([fun() ->
+             Inputs = [KV || Mapped <-Mappeds, {J,KVs} <-Mapped,
+                             I==J, KV <-KVs],
+             reduce_seq(Reduce,Inputs)
+         end || I <-lists:seq(0,R-1)]),
     lists:sort(lists:flatten(Reduceds)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Pool                                                                      %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+pool(Funs) ->
+  Nodes = [node()|nodes()],
+  process_flag(trap_exit, true),
+  erlang:display(net_adm:ping(hd(nodes()))),
+  Workers = lists:append([start_workers(Node) || Node <- Nodes]),
+  Solution = worker_pool(Funs, Workers, [] ,0, []),
+  [unlink(W) || {_,W} <- Workers],
+  [exit(W, kill) || {_,W} <- Workers],
+  Solution.
+
+start_workers(Node) ->
+    rpc:call(Node, ?MODULE, init_workers, [Node]).
+
+init_workers(Node) ->
+    [init_worker(Node) || _ <- lists:seq(1, erlang:system_info(schedulers)-1)].
+
+init_worker(Node) ->
+    {Node, spawn_link(fun() -> work() end)}.
+
+
+worker_pool([Fun|Funs], [{Node,W}|Workers], Solved, Nr, WorkingProcesses) ->
+    W ! {self(), W, Fun},
+    worker_pool(Funs, Workers, Solved, (Nr+1), [{Node,W,Fun}|WorkingProcesses]);
+worker_pool([], _, Solved, 0, []) ->
+    Solved;
+worker_pool(Funs, Workers, Solved, Nr, WorkingProcesses) ->
+    receive
+        {done, Pid, Solution} ->
+            case lists:keytake(Pid,2,WorkingProcesses) of
+                false -> exit(this_should_never_happen);
+                {_,{Node,Pid,_},NewList} ->
+                    worker_pool(Funs, [{Node,Pid}|Workers], [Solution|Solved],
+                                (Nr-1), NewList)
+            end;
+        {'EXIT', Pid, _} ->
+            erlang:display("Test"),
+            case lists:keytake(Pid,2,WorkingProcesses) of
+                {_,{Node,Pid,Fun},NewList} ->
+                    % Restart a process if crashed and node is up.
+                    case net_adm:ping(Node) of
+                        pong ->
+                            {Node,Worker} = rpc:call(Node, ?MODULE, init_worker, [Node]),
+                            worker_pool([Fun|Funs], [{Node,Worker}|Workers], Solved,
+                                        (Nr-1), NewList);
+                        pang ->
+                            worker_pool([Fun|Funs], Workers, Solved,
+                                        (Nr-1), NewList)
+                    end;
+                false ->
+                    case lists:keytake(Pid,2,Workers) of
+                        false -> exit(this_should_never_happen);
+                        {_,{Node,Pid},NewList} ->
+                            % Restart a process if crashed and node is up.
+                            case net_adm:ping(Node) of
+                                pong ->
+                                    {Node,Worker} = rpc:call(Node, ?MODULE, init_worker, [Node]),
+                                    worker_pool(Funs, [{Node,Worker}|NewList], Solved,
+                                                (Nr), WorkingProcesses);
+                                pang ->
+                                    worker_pool(Funs, NewList, Solved,
+                                                (Nr-1), WorkingProcesses)
+                            end
+
+                    end
+            end
+    end.
+
+
+work() ->
+    receive
+        {Pool, W, F } ->
+            Pool ! {done, W, F()}
+    end,
+    work().
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 spawn_mapper(Parent,Map,R,Split) ->
     spawn_link(fun() ->

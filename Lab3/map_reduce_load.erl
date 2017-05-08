@@ -1,8 +1,3 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% This is a very simple implementation of map-reduce, in both
-%% sequential and parallel versions.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 -module(map_reduce_load).
 -compile(export_all).
 
@@ -68,8 +63,7 @@ init_workers() ->
     [spawn_link(fun() -> work() end) || _ <- lists:seq(1, erlang:system_info(schedulers)-1)].
 
 worker_pool([F|Funs], [W|Workers], Solved, Nr) ->
-    Ref = make_ref(),
-    W ! {self(), Ref, F},
+    W ! {self(), W, F},
     worker_pool(Funs, Workers, Solved, (Nr+1));
 
 worker_pool([], _, Solved, 0) ->
@@ -77,14 +71,14 @@ worker_pool([], _, Solved, 0) ->
 
 worker_pool(Funs, Workers, Solved, Nr) ->
     receive
-        {done, Worker, Ref, Solution} ->
+        {done, Worker, Solution} ->
             worker_pool(Funs, [Worker|Workers], [Solution|Solved], (Nr-1))
     end.
 
 work() ->
     receive
-        {Pool, Ref, F } ->
-            Pool ! {done, self(), Ref, F()}
+        {Pool, W, F } ->
+            Pool ! {done, W, F()}
     end,
     work().
 

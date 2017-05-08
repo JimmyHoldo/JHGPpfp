@@ -22,12 +22,14 @@ page_rank() ->
     Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
     map_reduce:map_reduce_seq(fun map/2, fun reduce/2,
 			      [{Url,ok} || Url <- Urls]).
+
 %% Timings: 17468426,
 page_rank_par() ->
     dets:open_file(web,[{file,"web.dat"}]),
     Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
     map_reduce:map_reduce_par(fun map/2, 32, fun reduce/2, 32,
 			      [{Url,ok} || Url <- Urls]).
+
 %% Timings: 17948227,
 page_rank_dist() ->
     dets:open_file(web,[{file,"web.dat"}]),
@@ -35,9 +37,16 @@ page_rank_dist() ->
     map_reduce_dist:map_reduce_dist(fun map/2, 32, fun reduce/2, 32,
 			      [{Url,ok} || Url <- Urls]).
 
-%% Timings: 17506045, 
+%% Timings: 17506045,
 page_rank_load() ->
   dets:open_file(web,[{file,"web.dat"}]),
   Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
   map_reduce_load:map_reduce_load(fun map/2, 32, fun reduce/2, 32,
 			      [{Url,ok} || Url <- Urls]).
+
+%% Timings: 
+page_rank_fault() ->
+    dets:open_file(web,[{file,"web.dat"}]),
+    Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
+    map_reduce_fault:map_reduce_fault(fun map/2, 32, fun reduce/2, 32,
+    			      [{Url,ok} || Url <- Urls]).

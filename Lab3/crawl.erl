@@ -10,10 +10,9 @@
 %% be started using inets:start().
 crawl(Url,D) ->
     Pages = follow(D,[{Url,undefined}]),
-    {ok,File} = dets:open_file("web.dat",[]),    
-    [{dets:insert(File,{U,Body}),
-     erlang:display(dets:lookup(File,U))}
-        || {U,Body} <- Pages, Body /= undefined],
+    {ok,File} = dets:open_file("web.dat",[]),
+    Ls = [{U,Body} || {U,Body} <- Pages, Body /= undefined],
+    dets:insert(File,Ls),
     dets:close(File).
 
 follow(0,KVs) ->
@@ -64,10 +63,9 @@ find_urls(Url,Html) ->
 			|| [{Pos,Len}] <- RLocs];
 		   _ ->
 		       []
-	       end,		       
+	       end,
     Absolute ++ [Url++"/"++
 		     lists:dropwhile(
 		       fun(Char)->Char==$/ end,
 		       tl(lists:dropwhile(fun(Char)->Char/=$" end, R)))
 		 || R <- Relative].
-
