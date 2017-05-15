@@ -3,4 +3,18 @@
 We ran our test on two computers in the school. The computers have a 4-core Intel i5-3470S processor with one node on each computer.
 The choice to only have one node on every machine was because we started "erlang:system_info(schedulers)-1)" processes on every node and therefore more nodes than one on each machine would lead to more interleaving between processes.
 
- Benchmark with a 96MB 
+Benchmark with a 96MB file created by crawling "www.aftonbladet.se" at depth 3.
+Running-time in microseconds.
+
+-------------------------------------|
+function        : 1st run,  2nd run  |
+-------------------------------------|
+page_rank       : 52400283, 52591524 |
+page_rank_par   : 25247049, 25925593 |
+page_rank_dist  : 27247062, 28335862 |
+page_rank_load  : 27418924, 27049613 |
+page_rank_fault : 26785481, 26679392 |
+-------------------------------------|
+
+As we can see, all functions seems to run around twice as fast as the sequential version, regardless of strategy.
+This might be because all functions attempt to access the same file and therefore suffer access conflicts. Using two processes would give speedup since one process can work while the other is accessing the file, but adding more processes only gives more processes waiting to access the file. Another problem is that we send all mapper data through the master which results in a sequential part of the program that cannot be sped up. In order to see more speedups from map-reduce we would have to have one copy of the crawling data on each node as well as not send all the mapper data through the master.
