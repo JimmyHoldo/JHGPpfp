@@ -1,3 +1,17 @@
+RESULTS FROM CRITERION
+
+The benchmarks are run on a computer with a 4-core Intel Core i7-6700HQ processor, on a laptop.
+The laptop was running on battery at the time.
+
+The results from running our 4 algorithms first with 4 cores then with 1.
+buySellP: The parallel version using Repa traverse and fold.
+buySellS: The sequential version using Repa traverse and foldS.
+buySell:  A sequential version using dynamic programming over an Repa array.
+buySellList: The same sequential version with dynamic programming but over lists instead.
+More details on the algorithms in the next section.
+
+----------
+
 ./LabRepa +RTS -N4 -ls
 Choose length of array:
 1000
@@ -29,6 +43,8 @@ mean                 17.96 ms   (15.94 ms .. 20.25 ms)
 std dev              5.208 ms   (4.662 ms .. 5.988 ms)
 variance introduced by outliers: 91% (severely inflated)
 
+----------
+
 ./LabRepa +RTS -N1 -ls
 Choose length of array:
 1000
@@ -58,3 +74,69 @@ time                 7.030 ms   (6.949 ms .. 7.134 ms)
 mean                 7.078 ms   (7.017 ms .. 7.188 ms)
 std dev              216.3 μs   (137.3 μs .. 350.0 μs)
 variance introduced by outliers: 11% (moderately inflated)
+
+--------------------
+ALGORITHMS
+
+buySellS
+This algorithm traverses each element in the list and
+for each element it traveses the rest of the list to
+find the best trade that involves buying this element and
+selling it at a later point.
+Then goes through all the trades and find the best (if any).
+1000 elements took: 7.030 ms
+
+buySellP
+This is the parallel version of buySellS.
+It finds the best trade for each element in parallel and
+then folds the list of best trades in parallel.
+1000 elements took: 5.613 ms
+
+buySell
+This version goes throught the array once to find the best trade.
+For each element it:
+- Checks if this is the cheapest stock encountered,
+    if so it remembers this element as the cheapest and continues.
+- Checks if selling the current cheapest stock here would
+  give the highest profit,
+    if so it remembers buying the current chepest stock and 
+    selling it here as the best trade and continues.
+- Otherwise it continues.
+1000 elements took: 16.59 μs
+
+buySellList
+The same as buySell but uses lists instead of Repa arrays.
+1000 elements took: 7.501 μs
+
+--------------------
+WORK AND DEPTH
+
+The input size is n
+The Work and Depth are not given in exact nr of instructions.
+Rather each term has a hidden constant that is the number of
+instructions per iteration.
+
+----------
+
+buySellP
+Work:           0.5*n^2 + n
+Actual Depth:   0.5*n + n
+Possible Depth: 1.5*(log n)
+
+For work we have to for each element go through the 
+remainder of the list. The remainder is on average
+half the size of the list (= 0.5*n^2).
+Then we have to go through all the results to find
+the best one (= n).
+
+For depth we can calculate the best trade for each 
+element in parallel. (n)
+When finding the best trade for each element we must
+travese the rest of the list (0.5*n)
+However we could compare the different trades
+logarithmically (0.5*(log n))
+Though we don't do this because each parallel task
+would become really small.
+Then we need to go through the resulting trades
+to find the best one (n).
+Though again this could be done logarithmically (log n).
