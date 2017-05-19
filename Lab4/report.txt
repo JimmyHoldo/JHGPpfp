@@ -1,0 +1,60 @@
+./LabRepa +RTS -N4 -ls
+Choose length of array:
+1000
+benchmarking buySellP
+time                 5.613 ms   (5.193 ms .. 6.053 ms)
+                     0.957 R²   (0.924 R² .. 0.978 R²)
+mean                 5.765 ms   (5.534 ms .. 6.106 ms)
+std dev              884.7 μs   (635.3 μs .. 1.163 ms)
+variance introduced by outliers: 78% (severely inflated)
+
+benchmarking buySell
+time                 38.15 μs   (34.24 μs .. 42.22 μs)
+                     0.949 R²   (0.934 R² .. 0.977 R²)
+mean                 41.80 μs   (39.84 μs .. 44.81 μs)
+std dev              7.879 μs   (4.840 μs .. 12.58 μs)
+variance introduced by outliers: 95% (severely inflated)
+
+benchmarking buySellList
+time                 8.185 μs   (7.755 μs .. 8.703 μs)
+                     0.986 R²   (0.976 R² .. 0.998 R²)
+mean                 7.897 μs   (7.720 μs .. 8.368 μs)
+std dev              915.7 ns   (435.6 ns .. 1.595 μs)
+variance introduced by outliers: 90% (severely inflated)
+
+benchmarking buySellS
+time                 11.00 ms   (6.922 ms .. 14.42 ms)
+                     0.693 R²   (0.482 R² .. 0.850 R²)
+mean                 17.96 ms   (15.94 ms .. 20.25 ms)
+std dev              5.208 ms   (4.662 ms .. 5.988 ms)
+variance introduced by outliers: 91% (severely inflated)
+
+./LabRepa +RTS -N1 -ls
+Choose length of array:
+1000
+benchmarking buySellP
+time                 7.138 ms   (7.025 ms .. 7.256 ms)
+                     0.998 R²   (0.996 R² .. 0.999 R²)
+mean                 7.312 ms   (7.237 ms .. 7.491 ms)
+std dev              325.6 μs   (171.6 μs .. 606.4 μs)
+variance introduced by outliers: 22% (moderately inflated)
+
+benchmarking buySell
+time                 16.59 μs   (16.48 μs .. 16.73 μs)
+                     0.999 R²   (0.999 R² .. 1.000 R²)
+mean                 16.71 μs   (16.60 μs .. 16.87 μs)
+std dev              456.6 ns   (302.5 ns .. 691.2 ns)
+variance introduced by outliers: 30% (moderately inflated)
+
+benchmarking buySellList
+time                 7.501 μs   (7.485 μs .. 7.520 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 7.495 μs   (7.488 μs .. 7.504 μs)
+std dev              27.42 ns   (21.13 ns .. 35.76 ns)
+
+benchmarking buySellS
+time                 7.030 ms   (6.949 ms .. 7.134 ms)
+                     0.998 R²   (0.996 R² .. 1.000 R²)
+mean                 7.078 ms   (7.017 ms .. 7.188 ms)
+std dev              216.3 μs   (137.3 μs .. 350.0 μs)
+variance introduced by outliers: 11% (moderately inflated)
