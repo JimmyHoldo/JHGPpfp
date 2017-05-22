@@ -51,7 +51,7 @@ getBestSellId id1 id2 arr
 -- Sequential                                                              --
 -----------------------------------------------------------------------------
 
---| Version using lists for finding buy and sell index
+-- | Version using lists for finding buy and sell index
 buySellList :: [Int] -> (Int, Int, Int)
 buySellList xs = buySellList' xs 0 (-1,9999999) (-1,-1, 0)
 
@@ -65,7 +65,7 @@ buySellList' (i:is) n (index, val) (b, s, p)
 
 -----------------------------------------------------------------------------
 
---| Version using arrays for finding buy and sell index
+-- | Version using arrays for finding buy and sell index
 buySell :: Array U DIM1 Int -> (Int, Int, Int)
 buySell xs = buySell' xs 0 (-1,9999999) (-1,-1, 0)
 
@@ -81,7 +81,7 @@ buySell' is n (index, val) (b, s, p)
 
 -----------------------------------------------------------------------------
 
---| Version using arrays and Repa functions for finding buy and sell index
+-- | Version using arrays and Repa functions for finding buy and sell index
 buySellS :: Array U DIM1 Int -> Array U DIM0 (Int, Int, Int)
 buySellS arr = foldS fun (-1, -1, 0) $  allBuySellProfitsS arr
 
@@ -99,7 +99,7 @@ allBuySellProfitsS arr =
 -- Parallel                                                              --
 -----------------------------------------------------------------------------
 
---| Parallel version using arrays for finding buy and sell index
+-- | Parallel version using arrays for finding buy and sell index
 buySellP :: Array U DIM1 Int -> Array U DIM0 (Int, Int, Int)
 buySellP arr = runIdentity $ do
     arr' <- allBuySellProfits arr

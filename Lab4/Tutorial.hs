@@ -1,14 +1,30 @@
+{-# LANGUAGE FlexibleContexts #-}
 import Criterion.Main
+import Data.List
+import Control.Parallel
+import System.Random
 
 main = do
     putStrLn $ show $ "Choose a number for fib calculations:"
     str <- getLine
-    let i = read str :: Int
+    let i = read str :: Integer
+    putStrLn "Choose length of array:"
+    str2 <- getLine
+    let lengthList = read str2 :: Int
+    g <- newStdGen
+    let rndL = rndList lengthList g
     defaultMain [
-        bench "fib" $ nf fib i
-    ]
+        bench "qsort" $ nf (sum . qsort) rndL,
+        bench "qsortp" $ nf (sum . (qsortp 500)) rndL,
+        bench "qsortpf" $ nf (sum . (qsortpf 500)) rndL
+      ]
 
-
+-- | create a random list of length n
+rndList :: (RandomGen t1, Random Int) => Int -> t1 -> [Int]
+rndList 0 _ = []
+rndList n g = nr : (rndList (n-1) g')
+    where
+        (nr,g') = randomR (1,50000) g
 -----------------------------------------------------------------------------
 -- Sequential fib                                                          --
 -----------------------------------------------------------------------------
@@ -43,34 +59,44 @@ fib3 :: Integer -> Integer
 fib3 1 = 1
 fib3 2 = 1
 fib3 n = (par fibn1 (fib3 (n-2))) + fibn1
-	where fibn1 = fib3 (n-1)
+    where fibn1 = fib3 (n-1)
 
 -----------------------------------------------------------------------------
 -- Sequential fib                                                          --
 -----------------------------------------------------------------------------
-
-
-
------------------------------------------------------------------------------
--- Sequential fib                                                          --
------------------------------------------------------------------------------
-
-
-
------------------------------------------------------------------------------
--- Sequential fib                                                          --
------------------------------------------------------------------------------
-
-
+qsort [] = []
+qsort (x:xs) =
+    qsort [y | y <- xs, y<x]
+    ++ [x]
+    ++ qsort [y | y <- xs, y>=x]
 
 
 -----------------------------------------------------------------------------
 -- Sequential fib                                                          --
 -----------------------------------------------------------------------------
-
-
+qsortp :: (Num a, Ord a) => Int -> [a] -> [a]
+qsortp _ [] = []
+qsortp n (x:xs) | n > 0 = a `par`(b `pseq` (a ++ [x] ++ b))
+                | otherwise = a ++ [x] ++ b
+    where
+        a = qsortp c [y | y <- xs, y<x]
+        b = qsortp c [y | y <- xs, y>=x]
+        c = if (n == 0) then 0 else (n-1)
 
 
 -----------------------------------------------------------------------------
 -- Sequential fib                                                          --
 -----------------------------------------------------------------------------
+forcelist :: (Num a) => [a] -> ()
+forcelist []     = ()
+forcelist (x:xs) = x `pseq` forcelist xs
+
+qsortpf :: (Num a, Ord a) => Int -> [a] -> [a]
+qsortpf _ [] = []
+qsortpf n (x:xs) | n > 0 = ( a) `par`
+                            ((forcelist b) `pseq` (a ++ [x] ++ b))
+                 | otherwise = a ++ [x] ++ b
+    where
+        a = qsortpf c [y | y <- xs, y<x]
+        b = qsortpf c [y | y <- xs, y>=x]
+        c = if (n == 0) then 0 else (n-1)
